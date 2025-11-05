@@ -1,0 +1,16 @@
+/.vs/
+
+/Library/
+# Outras pastas temporárias
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+
+# Arquivos de Build
+/Build/
+/Builds/
+
+# Arquivos do Visual Studio
+*.sln
+*.csproj
