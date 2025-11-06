@@ -1,13 +1,11 @@
-// ==========================
-// File: Projectile.cs
-// ==========================
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody))]
-public class Projectile : MonoBehaviour
+public class EnemyProjectile : MonoBehaviour
 {
-    public float damage = 5f;
-    public float lifetime = 5f;
+    public float damage = 10f;
+    public float lifetime = 2f;
     public GameObject owner;
 
     void Start()
@@ -26,5 +24,3 @@ public class Projectile : MonoBehaviour
         Destroy(gameObject);
     }
 }
-
-

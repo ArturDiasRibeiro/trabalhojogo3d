@@ -1,24 +1,28 @@
+using StarterAssets;
 using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(AudioSource))]
 public class Gun : MonoBehaviour
 {
+    // Variável para ler os inputs do Novo Sistema
+    private StarterAssetsInputs starterInputs;
+
     [Header("General")]
-    public bool useHitscan = true; // True = instant hit, False = projectile
+    public bool useHitscan = true;
     public Transform muzzlePoint;
     public ParticleSystem muzzleFlash;
     public GameObject hitEffectPrefab;
-    public LayerMask hitMask; // Layers this weapon can hit
+    public LayerMask hitMask;
 
     [Header("Hitscan Settings")]
     public float damage = 25f;
     public float range = 100f;
-    public float fireRate = 10f; // bullets per second
-    public float spreadAngle = 1f; // degrees
+    public float fireRate = 10f;
+    public float spreadAngle = 1f;
 
     [Header("Projectile Settings")]
-    public GameObject projectilePrefab;
+    public GameObject projectilePrefab; // ATENÇÃO: Use o seu 'Player_Bullet_Prefab' aqui
     public float projectileSpeed = 80f;
 
     [Header("Ammo")]
@@ -29,12 +33,13 @@ public class Gun : MonoBehaviour
     [Header("Recoil & Camera")]
     public float recoilAmount = 2f;
     public float recoilRecoverSpeed = 8f;
-    public Transform cameraTransform; // Assign your player camera
+    public Transform cameraTransform;
 
     [Header("Audio")]
     public AudioClip fireSfx;
     public AudioClip reloadSfx;
 
+    // --- Variáveis Privadas ---
     private AudioSource audioSource;
     private float lastFireTime = 0f;
     private int currentAmmo;
@@ -45,13 +50,17 @@ public class Gun : MonoBehaviour
     {
         audioSource = GetComponent<AudioSource>();
         currentAmmo = magazineSize;
+        // Pega a referência do script de inputs que está no mesmo objeto
+        starterInputs = GetComponent<StarterAssetsInputs>();
     }
 
     void Update()
     {
         if (isReloading) return;
 
-        if (Input.GetKeyDown(KeyCode.Mouse1) && Time.time - lastFireTime >= 1f / fireRate)
+        // --- LÓGICA DE DISPARO (Corrigida para o Novo Input) ---
+        // Lê a variável 'fire' do StarterAssetsInputs
+        if (starterInputs.fire && Time.time - lastFireTime >= 1f / fireRate)
         {
             if (currentAmmo <= 0)
                 StartCoroutine(Reload());
@@ -59,13 +68,18 @@ public class Gun : MonoBehaviour
                 Fire();
         }
 
-        if (Input.GetKeyDown(KeyCode.R))
+        // --- LÓGICA DE RECARREGAR (BUG CORRIGIDO) ---
+        // Lê a variável 'reload' do StarterAssetsInputs
+        if (starterInputs.reload)
         {
+            // Reseta a flag imediatamente para não recarregar em loop
+            starterInputs.reload = false;
+
             if (currentAmmo < magazineSize && reserveAmmo > 0)
                 StartCoroutine(Reload());
         }
 
-        // Simple recoil recovery
+        // Lógica de Recuo (igual)
         if (currentRecoil > 0f)
         {
             currentRecoil = Mathf.MoveTowards(currentRecoil, 0f, recoilRecoverSpeed * Time.deltaTime);
@@ -79,11 +93,9 @@ public class Gun : MonoBehaviour
         lastFireTime = Time.time;
         currentAmmo--;
 
-        // Muzzle flash & sound
         if (muzzleFlash != null) muzzleFlash.Play();
         if (fireSfx != null) audioSource.PlayOneShot(fireSfx);
 
-        // Apply recoil
         currentRecoil += recoilAmount;
         if (cameraTransform != null)
             cameraTransform.localEulerAngles = new Vector3(-currentRecoil, 0f, 0f);
@@ -92,6 +104,10 @@ public class Gun : MonoBehaviour
             PerformHitscanShot();
         else
             SpawnProjectile();
+
+        // Reseta a flag de 'fire' para permitir tiro semi-automático (um por clique)
+        // Se quiser automático (segurar o botão), comente esta linha
+        starterInputs.fire = false;
     }
 
     void PerformHitscanShot()
@@ -99,22 +115,36 @@ public class Gun : MonoBehaviour
         Vector3 direction = GetShotDirection();
         if (Physics.Raycast(muzzlePoint.position, direction, out RaycastHit hit, range, hitMask))
         {
-            // Apply damage
-            var health = hit.collider.GetComponent<Health>();
+            // Procura o script de vida do INIMIGO (EnemyHealth)
+            var health = hit.collider.GetComponent<EnemyHealth>();
             if (health != null)
                 health.TakeDamage(damage);
 
-            // Hit effect
             if (hitEffectPrefab != null)
                 Instantiate(hitEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
         }
     }
 
+    // --- LÓGICA DE PROJÉTIL (BUG CORRIGIDO) ---
     void SpawnProjectile()
     {
         if (projectilePrefab == null) return;
 
         GameObject proj = Instantiate(projectilePrefab, muzzlePoint.position, Quaternion.LookRotation(muzzlePoint.forward));
+
+        // Pega o script 'PlayerProjectile' que fizemos
+        PlayerProjectile projScript = proj.GetComponent<PlayerProjectile>();
+        if (projScript != null)
+        {
+            // "Diz" ao projétil qual o dano a dar e quem o atirou
+            projScript.damage = this.damage;
+            projScript.owner = this.gameObject;
+        }
+        else
+        {
+            Debug.LogError("O Prefab do Projétil NÃO TEM o script 'PlayerProjectile.cs'!");
+        }
+
         Rigidbody rb = proj.GetComponent<Rigidbody>();
         if (rb != null)
             rb.velocity = muzzlePoint.forward * projectileSpeed;
@@ -135,6 +165,7 @@ public class Gun : MonoBehaviour
 
         isReloading = true;
         if (reloadSfx != null) audioSource.PlayOneShot(reloadSfx);
+
         yield return new WaitForSeconds(reloadTime);
 
         int needed = magazineSize - currentAmmo;
@@ -144,7 +175,7 @@ public class Gun : MonoBehaviour
         isReloading = false;
     }
 
-    // For UI
+    // Funções para a UI (não precisam de mudança)
     public int GetCurrentAmmo() => currentAmmo;
     public int GetReserveAmmo() => reserveAmmo;
 }

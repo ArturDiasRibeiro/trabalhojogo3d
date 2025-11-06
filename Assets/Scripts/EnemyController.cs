@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -29,11 +30,60 @@ public class EnemyController : MonoBehaviour
 
     void Start()
     {
+        Debug.Log($"Inimigo {gameObject.name} iniciou o Start()");
         agent = GetComponent<NavMeshAgent>();
-        //anim = GetComponent<Animator>();
         player = GameObject.FindGameObjectWithTag("Player")?.transform;
-        if (patrolPoints == null || patrolPoints.Length == 0) state = State.Alert;
-        GoToNextPatrolPoint();
+
+        // --- INÍCIO DA NOVA LÓGICA (COM DEPURAÇÃO) ---
+
+        if (patrolPoints == null || patrolPoints.Length == 0)
+        {
+            Debug.Log("Array de patrulha está vazio. A tentar encontrar 'PatrolHolder'...");
+            GameObject patrolHolder = GameObject.FindWithTag("PatrolHolder");
+
+            if (patrolHolder != null)
+            {
+                Debug.Log($"Encontrado objeto '{patrolHolder.name}' com a tag 'PatrolHolder'.");
+                List<Transform> validPoints = new List<Transform>();
+
+                // Percorre todos os filhos
+                foreach (Transform child in patrolHolder.transform)
+                {
+                    if (child != null)
+                    {
+                        Debug.Log($"-- Encontrado filho: {child.name}");
+                        validPoints.Add(child);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("-- Encontrado um filho NULO. A ignorar.");
+                    }
+                }
+
+                // Converte a lista segura de volta para o array
+                patrolPoints = validPoints.ToArray();
+                Debug.Log($"Array de patrulha preenchido com {patrolPoints.Length} pontos.");
+            }
+            else
+            {
+                Debug.LogError("FALHA AO ENCONTRAR 'PatrolHolder'. O inimigo não vai patrulhar.");
+            }
+        }
+
+        // --- FIM DA NOVA LÓGICA ---
+
+        // Checagem final:
+        if (patrolPoints == null || patrolPoints.Length == 0)
+        {
+            Debug.LogWarning($"Inimigo {gameObject.name} não tem pontos de patrulha! A entrar em modo Alerta.");
+            state = State.Alert;
+        }
+        else
+        {
+            // SOMENTE se tivermos pontos, ele começa a patrulhar.
+            Debug.Log("A iniciar patrulha...");
+            GoToNextPatrolPoint();
+        }
     }
 
     void Update()
@@ -104,9 +154,35 @@ public class EnemyController : MonoBehaviour
 
     void GoToNextPatrolPoint()
     {
-        if (patrolPoints == null || patrolPoints.Length == 0) return;
+        // 1. Verificação de segurança principal
+        if (patrolPoints == null || patrolPoints.Length == 0)
+        {
+            Debug.LogError($"GoToNextPatrolPoint foi chamada, mas o array patrolPoints está nulo ou vazio! Inimigo {gameObject.name} vai parar.");
+            state = State.Alert; // Pára de tentar patrulhar
+            return;
+        }
+
+        // 2. Verificação de segurança do índice (isto não devia acontecer, mas vamos verificar)
+        if (currentPatrolIndex < 0 || currentPatrolIndex >= patrolPoints.Length)
+        {
+            Debug.LogError($"Índice de patrulha ({currentPatrolIndex}) está FORA DOS LIMITES (Tamanho={patrolPoints.Length}). A redefinir para 0.");
+            currentPatrolIndex = 0;
+        }
+
+        // 3. Verificação de segurança do elemento (ESTE é o nosso suspeito)
+        if (patrolPoints[currentPatrolIndex] == null)
+        {
+            Debug.LogError($"O ponto de patrulha no índice {currentPatrolIndex} está NULO. A saltar para o próximo.");
+            // Avança para o próximo índice e tenta novamente
+            currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
+            return; // Sai da função por agora, vai tentar de novo no próximo Update
+        }
+
+        // 4. Se tudo passou, define o destino
         agent.isStopped = false;
         agent.SetDestination(patrolPoints[currentPatrolIndex].position);
+
+        // 5. Avança o índice para a próxima vez
         currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
     }
 
@@ -153,7 +229,7 @@ public class EnemyController : MonoBehaviour
             GameObject p = Instantiate(projectilePrefab, shootPoint.position, Quaternion.identity);
             Rigidbody rb = p.GetComponent<Rigidbody>();
             if (rb) rb.velocity = (player.position - shootPoint.position).normalized * projectileSpeed;
-            var proj = p.GetComponent<Projectile>();
+            var proj = p.GetComponent<EnemyProjectile>();
             if (proj != null) proj.owner = gameObject;
         }
 
