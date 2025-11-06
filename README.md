@@ -17,7 +17,7 @@ Este projeto demonstra um ciclo de jogo completo, onde o jogador deve sobreviver
 
 ## 🚀 Tecnologias Utilizadas
 
-* **Motor:** Unity 202X.X
+* **Motor:** Unity 2022.3.42f1
 * **Linguagem:** C#
 * **Input:** Unity Input System (Novo)
 * **UI:** Unity UI (Canvas e TextMeshPro)
